@@ -39,9 +39,10 @@ df_proyecto <- df_original %>%
   
   mutate(
     edo_ajustado = case_when(
-      estado %in% c("Baja California Sur","Chiapas","Michoacán",
-                    "Nayarit","Veracruz","Tamaulipas",
-                    "Guerrero","Oaxaca","Sinaloa") ~ "Con Costa",
+      estado %in% c("Baja California", "Baja California Sur", "Sonora", "Sinaloa",
+                    "Nayarit", "Jalisco", "Colima", "Michoacán", "Guerrero",
+                    "Oaxaca", "Chiapas", "Tamaulipas", "Veracruz",
+                    "Tabasco", "Campeche", "Yucatán", "Quintana Roo") ~ "Con Costa",
       TRUE ~ "Sin Costa"
     )
   ) %>%
@@ -53,114 +54,116 @@ df_proyecto <- df_original %>%
       tipo_fenomeno == "Sequía" ~ "Sequía",
       TRUE ~ "Otros_Hidro"
     )
+  ) %>%
+  
+  # Eliminamos ruido
+  filter(fenomeno_ajustado != "Otros_Hidro")
+
+# ==============================
+# 4. AJUSTE DE DAÑOS (BASE)
+# ==============================
+
+# Aquí puedes meter inflación después si quieres
+df_proyecto <- df_proyecto %>%
+  mutate(
+    danos_ajustados = danos_millones
   )
 
 # ==============================
-# 4. LOGARITMO DE LAS PÉRDIDAS
+# 5. TRANSFORMACIÓN LOG
 # ==============================
 
 df_proyecto <- df_proyecto %>%
   mutate(
-    log_danos = log(danos_millones)
+    log_danos = log(danos_ajustados)
   )
 
 # ==============================
-# 5. ANÁLISIS DESCRIPTIVO
+# 6. ANÁLISIS DESCRIPTIVO
 # ==============================
 
-summary(df_proyecto$danos_millones)
+summary(df_proyecto$danos_ajustados)
 
-sd(df_proyecto$danos_millones)
+sd(df_proyecto$danos_ajustados)
 
-quantile(df_proyecto$danos_millones)
+quantile(df_proyecto$danos_ajustados)
 
 table(df_proyecto$fenomeno_ajustado)
 
+table(df_proyecto$edo_ajustado)
+
 # ==============================
-# 6. HISTOGRAMA
+# 7. HISTOGRAMA
 # ==============================
 
-hist(df_proyecto$danos_millones,
+hist(df_proyecto$danos_ajustados,
      breaks = 40,
      main = "Distribución de pérdidas",
      xlab = "Daños (millones de pesos)")
 
 # ==============================
-# 7. AJUSTE DE DISTRIBUCIONES
+# 8. AJUSTE DE DISTRIBUCIONES
 # ==============================
 
-datos <- df_proyecto$danos_millones
+datos <- df_proyecto$danos_ajustados
 
 fit_lognorm <- fitdist(datos, "lnorm")
-
-fit_gamma <- fitdist(datos, "gamma")
-
-fit_pareto <- fitdist(datos, "pareto",
-                      start=list(shape=1, scale=1))
+fit_gamma   <- fitdist(datos, "gamma")
+fit_pareto  <- fitdist(datos, "pareto",
+                       start = list(shape = 1, scale = 1))
 
 # ==============================
-# 8. PRUEBAS DE BONDAD DE AJUSTE
+# 9. PRUEBAS DE BONDAD DE AJUSTE
 # ==============================
 
 gofstat(list(fit_lognorm, fit_gamma, fit_pareto))
 
 # ==============================
-# 9. MODELOS POR GRUPOS
+# 10. MODELOS POR GRUPOS
 # ==============================
 
-# Modelo 1: Estados con costa
+# Con Costa
 datos_costa <- df_proyecto %>%
   filter(edo_ajustado == "Con Costa")
 
-fit_costa <- fitdist(datos_costa$danos_millones, "lnorm")
+fit_costa <- fitdist(datos_costa$danos_ajustados, "lnorm")
 
-
-# Modelo 2: Estados sin costa
+# Sin Costa
 datos_sincosta <- df_proyecto %>%
   filter(edo_ajustado == "Sin Costa")
 
-fit_sincosta <- fitdist(datos_sincosta$danos_millones, "lnorm")
+fit_sincosta <- fitdist(datos_sincosta$danos_ajustados, "lnorm")
 
-
-# Modelo 3: Ciclones
+# Ciclones
 datos_ciclones <- df_proyecto %>%
   filter(fenomeno_ajustado == "Ciclones")
 
-fit_ciclones <- fitdist(datos_ciclones$danos_millones, "lnorm")
+fit_ciclones <- fitdist(datos_ciclones$danos_ajustados, "lnorm")
 
-
-# Modelo 4: Inundaciones
+# Inundaciones
 datos_inundaciones <- df_proyecto %>%
   filter(fenomeno_ajustado == "Inundaciones")
 
-fit_inundaciones <- fitdist(datos_inundaciones$danos_millones, "lnorm")
+fit_inundaciones <- fitdist(datos_inundaciones$danos_ajustados, "lnorm")
 
 # ==============================
-# 10. COSTO PROMEDIO ESPERADO
+# 11. COSTO PROMEDIO ESPERADO
 # ==============================
 
-# Parámetros estimados del modelo lognormal
 mu <- fit_lognorm$estimate["meanlog"]
 sigma <- fit_lognorm$estimate["sdlog"]
 
-# Esperanza teórica de la Lognormal
 EX <- exp(mu + sigma^2/2)
 
+EX
 cat("Costo promedio esperado por evento:", EX, "millones de pesos\n")
 
 # ==============================
-# 11. VERIFICACIÓN DEL MODELO
+# 12. VERIFICACIÓN DEL MODELO
 # ==============================
 
-# Media empírica de los datos
-media_empirica <- mean(df_proyecto$danos_millones)
-
-# Valor esperado según el modelo ajustado
-EX
+media_empirica <- mean(df_proyecto$danos_ajustados)
 
 media_empirica
 EX
-
-# Observamos qué tan distintos son nuestros resultados
 EX - media_empirica
-EX
