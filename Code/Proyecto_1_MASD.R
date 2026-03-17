@@ -6,22 +6,45 @@ install.packages("tidyverse")
 install.packages("readxl")
 install.packages("fitdistrplus")
 install.packages("actuar")
+install.packages("writexl")
+
 
 library(tidyverse)
 library(readxl)
 library(fitdistrplus)
 library(actuar)
+library(writexl) # para guardar la base de datos limpia
 
 # ==============================
 # 2. CARGAR DATOS
 # ==============================
 
 # Asumimos que estamos en el directorio general, el del repositorio de Github
-df_original <- read_excel("data/Basehistorica_2000_a_2024.xlsx")
+
+ruta <- "data/Basehistorica_2000_a_2024.xlsx"
+
+df_original <- read_excel(ruta,
+                          na = c("sd", "SD", "SNR", "SC", "SR", "NSR", "NR", "Nsr",
+                                 '7 niveles de un edificio', '19 362')
+                          )
 
 # ==============================
 # 3. LIMPIEZA
 # ==============================
+
+# corrige errores puntuales
+df_original[1087,16] <- as.numeric(df_original[1087,15])*0.001
+df_original[9296,11] <- as.numeric(19362)
+
+# Formatea columnas
+df_original$`Fecha de Fin` <- as.Date(
+  as.numeric(ifelse(grepl("^[0-9]+$", df_original$`Fecha de Fin`),
+                    df_original$`Fecha de Fin`, NA)),
+  origin = "1899-12-30"
+)
+df_original$`Clasificación del fenómeno` <- as.factor(df_original$`Clasificación del fenómeno`)
+df_original$`Tipo de fenómeno` <- as.factor(df_original$`Tipo de fenómeno`)
+df_original$Fuente <- as.factor(df_original$Fuente)
 
 df_proyecto <- df_original %>%
   
@@ -57,14 +80,17 @@ df_proyecto <- df_original %>%
     )
   ) %>%
   
-  # Eliminamos ruido
-  filter(fenomeno_ajustado != "Otros_Hidro")
+# Eliminamos ruido
+filter(fenomeno_ajustado != "Otros_Hidro")
+
+# Guarda la base de datos limpia
+write_xlsx(df_proyecto, "data/df_limpia.xlsx")
 
 # ==============================
 # 4. AJUSTE DE DAÑOS (BASE)
 # ==============================
 
-# Aquí puedes meter inflación después si quieres
+# Aquí meteremos inflación, de ser necesario
 df_proyecto <- df_proyecto %>%
   mutate(
     danos_ajustados = danos_millones
