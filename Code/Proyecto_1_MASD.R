@@ -16,7 +16,8 @@ library(actuar)
 # 2. CARGAR DATOS
 # ==============================
 
-df_original <- read_excel("Basehistorica_2000_a_2024.xlsx")
+# Asumimos que estamos en el directorio general, el del repositorio de Github
+df_original <- read_excel("data/Basehistorica_2000_a_2024.xlsx")
 
 # ==============================
 # 3. LIMPIEZA
