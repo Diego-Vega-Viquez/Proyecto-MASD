@@ -120,6 +120,15 @@ table(df_proyecto$fenomeno_ajustado)
 table(df_proyecto$edo_ajustado)
 
 # ==============================
+# 6.1 MOMENTOS (FORMA DE LA DISTRUCIÓN)
+# ==============================
+
+library(moments)
+
+skewness(df_proyecto$danos_ajustados)
+kurtosis(df_proyecto$danos_ajustados)
+
+# ==============================
 # 7. HISTOGRAMA
 # ==============================
 
@@ -127,6 +136,16 @@ hist(df_proyecto$danos_ajustados,
      breaks = 40,
      main = "Distribución de pérdidas",
      xlab = "Daños (millones de pesos)")
+
+# ==============================
+# 7.1 GRÁFICAS ADICIONALES
+# ==============================
+
+boxplot(df_proyecto$danos_ajustados,
+        main = "Boxplot de pérdidas")
+
+plot(ecdf(df_proyecto$danos_ajustados),
+     main = "Función de distribución empírica")
 
 # ==============================
 # 8. AJUSTE DE DISTRIBUCIONES
@@ -140,13 +159,72 @@ fit_pareto  <- fitdist(datos, "pareto",
                        start = list(shape = 1, scale = 1))
 
 # ==============================
+# 8.1 COMPARACIÓN GRÁFICA
+# ==============================
+
+denscomp(list(fit_lognorm, fit_gamma, fit_pareto),
+         legendtext = c("Lognormal", "Gamma", "Pareto"))
+
+cdfcomp(list(fit_lognorm, fit_gamma, fit_pareto),
+        legendtext = c("Lognormal", "Gamma", "Pareto"))
+
+qqcomp(list(fit_lognorm, fit_gamma, fit_pareto),
+       legendtext = c("Lognormal", "Gamma", "Pareto"))
+
+# ==============================
+# 8.2 CRITERIOS DE INFORMACIÓN
+# ==============================
+
+AIC(fit_lognorm, fit_gamma, fit_pareto)
+BIC(fit_lognorm, fit_gamma, fit_pareto)
+
+# ==============================
+# 8.3 ANÁLISIS DE COLAS
+# ==============================
+
+# Valores extremos
+quantile(df_proyecto$danos_ajustados, probs = c(0.90, 0.95, 0.99))
+
+# ==============================
 # 9. PRUEBAS DE BONDAD DE AJUSTE
 # ==============================
 
 gofstat(list(fit_lognorm, fit_gamma, fit_pareto))
 
 # ==============================
-# 10. MODELOS POR GRUPOS
+# 10. ESPERANZA POR MODELO
+# ==============================
+
+# Lognormal
+mu <- fit_lognorm$estimate["meanlog"]
+sigma <- fit_lognorm$estimate["sdlog"]
+EX_lognorm <- exp(mu + sigma^2/2)
+
+# Gamma
+alpha <- fit_gamma$estimate["shape"]
+beta <- fit_gamma$estimate["rate"]
+EX_gamma <- alpha / beta
+
+# Pareto
+shape <- fit_pareto$estimate["shape"]
+scale <- fit_pareto$estimate["scale"]
+
+if(shape > 1){
+  EX_pareto <- scale / (shape - 1)
+} else {
+  EX_pareto <- NA
+}
+
+EX_lognorm
+EX_gamma
+EX_pareto
+
+cat("Esperanza Lognormal:", EX_lognorm, "\n")
+cat("Esperanza Gamma:", EX_gamma, "\n")
+cat("Esperanza Pareto:", EX_pareto, "\n")
+
+# ==============================
+# 11. MODELOS POR GRUPOS
 # ==============================
 
 # Con Costa
@@ -174,7 +252,7 @@ datos_inundaciones <- df_proyecto %>%
 fit_inundaciones <- fitdist(datos_inundaciones$danos_ajustados, "lnorm")
 
 # ==============================
-# 11. COSTO PROMEDIO ESPERADO
+# 12. COSTO PROMEDIO ESPERADO
 # ==============================
 
 mu <- fit_lognorm$estimate["meanlog"]
@@ -186,7 +264,7 @@ EX
 cat("Costo promedio esperado por evento:", EX, "millones de pesos\n")
 
 # ==============================
-# 12. VERIFICACIÓN DEL MODELO
+# 13. VERIFICACIÓN DEL MODELO
 # ==============================
 
 media_empirica <- mean(df_proyecto$danos_ajustados)
@@ -194,3 +272,15 @@ media_empirica <- mean(df_proyecto$danos_ajustados)
 media_empirica
 EX
 EX - media_empirica
+
+# ==============================
+# 14. SELECCIÓN DEL MODELO FINAL (DE FORMA "AUTOMÁTICA")
+# ==============================
+# Elegimos el modelo con el menor AIC automáticamente
+modelos <- list(fit_lognorm, fit_gamma, fit_pareto)
+nombres <- c("Lognormal", "Gamma", "Pareto")
+ganador_idx <- which.min(c(fit_lognorm$aic, fit_gamma$aic, fit_pareto$aic))
+
+cat("--- CONCLUSIÓN TÉCNICA ---\n")
+cat("El modelo propuesto es:", nombres[ganador_idx], "\n")
+cat("Razón: Menor valor de AIC (", modelos[[ganador_idx]]$aic, ")\n")
